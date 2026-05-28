@@ -1,35 +1,50 @@
-import base64
-import json
 import os
-import cv2
-import requests
+from typing import List
+from google import genai
+from google.genai import types
+from pydantic import BaseModel, Field
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# 1. Define the desired output schema using Pydantic for guaranteed structured JSON
+class UnboxingAnalysis(BaseModel):
+    package_initially_sealed: bool = Field(
+        description="Determine if the shipping package state is initially fully sealed."
+    )
+    items_detected: List[str] = Field(
+        description="Identify the list of items extracted from the package."
+    )
+    tampering_detected: bool = Field(
+        description="Assess whether there is any visual evidence of fraud/tampering."
+    )
+    confidence_score: float = Field(
+        description="Confidence score of the assessment between 0.0 and 1.0."
+    )
 
 
 class VLMAnalyzer:
 
     def __init__(self, api_key: str = None):
-        """Initializes the VLM Analyzer client."""
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
-        self.api_url = "https://api.openai.com/v1/chat/completions"
+        self.api_key = api_key or os.getenv("GEMINI_API_KEY")
 
-    def _encode_image(self, image_path: str) -> str:
-        """Encodes a local image frame to base64 string."""
+        self.client = genai.Client(api_key=self.api_key)
+
+    def _prepare_image_part(self, image_path: str) -> types.Part:
+        """Reads a local image frame and converts it into a Gemini API Part object."""
         with open(image_path, "rb") as image_file:
-            return base64.b64encode(image_file.read()).decode("utf-8")
+            image_bytes = image_file.read()
 
-    def analyze_unboxing_frames(
-        self, frame_folder: str, prompt_template: str = None
-    ) -> dict:
-        """Sends a subset of extracted frames to the VLM to analyze video
+        # Determine mime type from extension
+        ext = os.path.splitext(image_path)[1].lower()
+        mime_type = "image/png" if ext == ".png" else "image/jpeg"
 
-        contents.
-        """
-        if not self.api_key:
-            raise ValueError(
-                "API Key is missing. Set OPENAI_API_KEY environment variable."
-            )
+        # Return the official Part object from bytes
+        return types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
 
-        # Gather and sort frame images
+    def analyze_unboxing_frames(self, frame_folder: str, prompt_template: str = None) -> dict:
+        """Sends a subset of extracted frames to the Gemini VLM to analyze video contents."""
+
         all_frames = sorted(
             [
                 os.path.join(frame_folder, f)
@@ -41,52 +56,42 @@ class VLMAnalyzer:
         if not all_frames:
             return {"error": "No frames found to analyze."}
 
-        # Subsample frames to fit within API context windows (e.g., max 10 keyframes)
         max_keyframes = 10
         step = max(1, len(all_frames) // max_keyframes)
         selected_keyframes = all_frames[::step][:max_keyframes]
 
-        # Structure the payload content list with the text prompt first
+        
         default_prompt = (
             "Analyze these chronological frames from an e-commerce unboxing video. "
             "Determine if the shipping package state is initially fully sealed, identify the items extracted, "
-            "and assess whether there is any visual evidence of fraud/tampering. "
-            "Respond strictly with a JSON object containing keys: 'package_initially_sealed' (bool), "
-            "'items_detected' (list of strings), 'tampering_detected' (bool), and 'confidence_score' (float)."
+            "and assess whether there is any visual evidence of fraud/tampering."
         )
 
-        content_payload = [{"type": "text", "text": prompt_template or default_prompt}]
+        contents_payload = [prompt_template or default_prompt]
 
-        # Append base64 encoded images to the payload
         for frame_path in selected_keyframes:
-            base64_image = self._encode_image(frame_path)
-            content_payload.append(
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/jpeg;base64,{base64_image}"
-                    },
-                }
-            )
-
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}",
-        }
-
-        payload = {
-            "model": "gpt-4o",
-            "messages": [{"role": "user", "content": content_payload}],
-            "response_format": {"type": "json_object"},
-            "temperature": 0.2,
-        }
+            image_part = self._prepare_image_part(frame_path)
+            contents_payload.append(image_part)
 
         try:
-            response = requests.post(
-                self.api_url, headers=headers, json=payload
+            # Generate structured content using Gemini
+            # Using 'gemini-2.5-flash' for optimal multi-modal processing speed and cost
+            response = self.client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=contents_payload,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=UnboxingAnalysis,
+                    temperature=0.2,
+                ),
             )
-            response.raise_for_status()
-            result_json = response.json()["choices"][0]["message"]["content"]
-            return json.loads(result_json)
+
+            # When response_schema is passed, the SDK automatically parses the JSON text
+            # into an object accessible via response.parsed
+            if response.parsed:
+                return response.parsed.model_dump()
+            else:
+                return {"error": "Failed to parse structured JSON from model."}
+
         except Exception as e:
-            return {"error": f"VLM API request failed: {str(e)}"}
+            return {"error": f"Gemini VLM API request failed: {str(e)}"}

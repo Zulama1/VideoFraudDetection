@@ -4,17 +4,14 @@ from ultralytics import YOLO
 
 class ObjectTracker:
 
-    def __init__(self, model_weight: str = "yolov8n.pt"):
+    def __init__(self, model_weight: str = "yolo11n.pt"):
         """Initializes the object tracking model."""
-        # This will download the weights automatically on the first run
         self.model = YOLO(model_weight)
 
     def track_objects_in_frames(self, frame_folder: str) -> dict:
-        """Scans the sampled frames to inventory all distinct detected objects.
-
-        Returns:
-            dict: A unique list of objects identified over the course of the
-            video.
+        """
+        Scans the sampled frames to inventory all distinct detected objects.
+        Returns dict: A unique list of objects identified over the course of the video.
         """
         detected_items_set = set()
         frame_files = sorted(

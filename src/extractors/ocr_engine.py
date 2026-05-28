@@ -5,14 +5,11 @@ import easyocr
 class OCREngine:
 
     def __init__(self, languages: list = ["en"]):
-        """Initializes the OCR Reader engine."""
-        # Downloads model parameters on initial execution if missing
         self.reader = easyocr.Reader(languages, gpu=False)
 
     def extract_text_from_labels(self, frame_folder: str) -> dict:
-        """Looks through frames to capture texts matching shipping IDs or tracking
-
-        numbers.
+        """
+        Looks through frames to capture texts matching shipping IDs or trackingnumbers.
         """
         all_detected_text_snippets = []
         frame_files = sorted(
@@ -24,11 +21,9 @@ class OCREngine:
         )
 
         for frame_path in frame_files:
-            # Execute text localization and recognition
             results = self.reader.readtext(frame_path)
 
             for bbox, text, confidence in results:
-                # Clean up extracted strings
                 cleaned_text = text.strip()
                 if len(cleaned_text) > 4 and confidence > 0.4:
                     if cleaned_text not in all_detected_text_snippets:

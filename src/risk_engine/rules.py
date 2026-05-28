@@ -5,23 +5,11 @@ class RuleEngine:
         self.weight_cuts = weight_cuts
         self.weight_seal = weight_seal
 
-    def evaluate_static_rules(
-        self, preprocessing_meta: dict, extractor_meta: dict
-    ) -> dict:
-        """Evaluates extracted visual metadata against strict risk rules.
-
-        Args:
-            preprocessing_meta (dict): Output from your VideoSplitter.
-            extractor_meta (dict): Merged output from your VLM / Trackers.
-
-        Returns:
-            dict: Structured rule violations and a calculated heuristic risk
-            score.
-        """
+    def evaluate_static_rules(self, preprocessing_meta: dict, extractor_meta: dict) -> dict:
         violations = []
         heuristic_score = 0.0
 
-        # Rule 1: Check for edited footage (Scene cuts are a major red flag)
+        # Rule 1: Check for edited footage
         cuts = preprocessing_meta.get("scene_cuts_detected", 0)
         if cuts > 0:
             violations.append(f"CRITICAL: {cuts} video cuts/edits detected.")
