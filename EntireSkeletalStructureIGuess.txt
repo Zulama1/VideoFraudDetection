@@ -1,0 +1,53 @@
+ecommerce-video-fraud/
+│
+├── data/
+│   ├── raw/                        # Original, unaltered uploads
+│   │   ├── video_001.mp4
+│   │   └── video_002.mkv
+│   ├── processed/                  # Intermediate outputs for the models
+│   │   ├── frames/                 # Sampled down images (e.g., 1-2 fps)
+│   │   │   └── video_001/
+│   │   │       ├── frame_0001.jpg
+│   │   │       └── frame_0002.jpg
+│   │   └── audio/                  # Extracted audio tracks for Whisper
+│   │       └── video_001.wav
+│   └── reference/                  # Order metadata from database for verification
+│       └── order_manifests.json    # Contains expected items, tracking IDs, etc.
+│
+├── config/                         # Configuration files (hyperparameters, API keys)
+│   ├── pipeline_config.yaml        # Frame rates, thresholds, model paths
+│   └── prompts.json                # System prompts for VLM extraction
+│
+├── src/                            # Core source code
+│   ├── __init__.py
+│   ├── pipeline.py                 # Main orchestrator (combines data -> features -> risk)
+│   │
+│   ├── preprocessing/              # Stage 1: Video manipulation
+│   │   ├── __init__.py
+│   │   ├── video_splitter.py       # Frame sampling & scene cut detection
+│   │   └── audio_extractor.py      # Extracts WAV from MP4
+│   │
+│   ├── extractors/                 # Stage 2: AI feature extraction
+│   │   ├── __init__.py
+│   │   ├── vlm_analyzer.py         # Handles GPT-4o / Gemini API calls
+│   │   ├── object_tracker.py       # YOLO / Florence-2 custom script (if bypassing VLM)
+│   │   ├── ocr_engine.py           # PaddleOCR / EasyOCR for shipping labels
+│   │   └── audio_transcriber.py    # Whisper API or local implementation
+│   │
+│   └── risk_engine/                # Stage 3: Decision making
+│       ├── __init__.py
+│       ├── rules.py                # Deterministic logic (e.g., if cuts > 0, flag)
+│       └── classifier.py           # ML Model (XGBoost) weighing the features
+│
+├── notebook/                       # Jupyter notebooks for R&D and testing
+│   ├── 01_eda_video_sampling.ipynb
+│   └── 02_testing_vlm_prompts.ipynb
+│
+├── tests/                          # Unit tests for code reliability
+│   ├── test_preprocessing.py
+│   └── test_risk_engine.py
+│
+├── .env                            # Local environment variables (API keys - gitignored)
+├── .gitignore                      # Excludes data/, .env, and local caches
+├── README.md                       # Project documentation
+└── requirements.txt                # Python dependencies

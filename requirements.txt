@@ -1,0 +1,5 @@
+requests>=2.31.0
+ultralytics>=8.1.0
+easyocr>=1.7.1
+opencv-python>=4.8.0
+xgboost>=2.0.0
